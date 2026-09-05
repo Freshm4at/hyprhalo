@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Hyprhalo
+GenericName=Ambilight
+Comment=Sync wallpaper and window glow with the edge colors of the active window
+Keywords=ambilight;halo;wallpaper;hyprland;
+Exec=/home/freshmeat/hyprhalo/target/release/hyprhalo
+Icon=hyprhalo
+Terminal=false
+StartupNotify=false
+Categories=Utility;AudioVideo;

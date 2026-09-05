@@ -1,0 +1,108 @@
+# hyprhalo configuration
+# This file is read from ~/.config/hyprhalo/config.toml
+
+# Sample rate while a target window is focused, so the wallpaper follows
+# changing content (videos, animations) without being costly. Lower = cheaper.
+capture_fps = 5.0
+
+# How often (ms) we ask Hyprland about the target window position/size.
+geometry_poll_ms = 250
+
+# Only target windows with this Hyprland class (e.g. "cs2", "hl2_linux", "eldenring").
+# Leave empty to follow the focused window.
+window_class = ""
+
+# Minimum window size (logical px) required to become a target.
+min_window_size = [480, 320]
+
+# Exponential smoothing of the derived colors: 0.0 = instant, 0.35 = smooth, 0.7 = very smooth.
+smoothing = 0.35
+
+# Global brightness multiplier for all derived colors (0..2).
+brightness = 1.0
+
+# Saturation booster (1.0 = unchanged, 1.3 = vivid).
+saturation_boost = 1.15
+
+# Floor for the luminance of derived colors, avoids pitch-black glows/wallpapers.
+min_luminance = 0.06
+
+# Color to drift toward when no target window is found (hex, e.g. "0b1020").
+idle_color = "0b1020"
+
+# How long (s) after the target window is lost the wallpaper keeps its last
+# captured colors before gently drifting to the idle color.
+idle_timeout_s = 3.0
+
+[wallpaper]
+# Draw a dynamic wallpaper whose colors follow the game window edges.
+enabled = true
+# 1.0 = vertical gradient (top edge -> bottom edge), 0.0 = horizontal (left -> right).
+direction_blend = 0.8
+# Vignette strength around the screen edges (0..1).
+vignette = 0.35
+# How much of the global screen-average color mixes into the wallpaper (0..1).
+ambient_blend = 0.3
+# Internal downscale factor for the wallpaper buffer (2 = half resolution, big CPU win,
+# the compositor upscales via viewporter). 1 = crisp, more CPU.
+scale_down = 2
+
+[glow]
+# Draw a halo around the target window with the captured edge colors.
+enabled = false
+# Radius of the outer fade in logical pixels.
+radius_px = 130
+# Depth of the soft fade drawn just inside the window edges.
+inner_px = 14
+# Halo opacity (0..1).
+intensity = 0.55
+# Per-edge segment counts. More segments = more detailed halo, slightly more CPU.
+top_segments = 18
+bottom_segments = 10
+left_segments = 12
+right_segments = 12
+
+[border]
+# Sync the Hyprland window border color (hyprctl setprop border_color) to the edge colors.
+# This renders a crisp light frame around the window at near-zero cost.
+sync = true
+# Border size (px) to request while a target window is active. 0 = leave untouched.
+border_size = 0
+# Only push a new border color when the color changed by at least this much (0..1).
+min_delta = 0.02
+
+[capture]
+# Thickness of the sampling band just inside the window edges (logical px).
+edge_band_px = 28
+# Skip these many logical px inside the window border before sampling.
+border_skip_px = 4
+# Sampling stride inside the band (higher = cheaper).
+sample_stride = 2
+# Give up on a screencopy session after this many consecutive failures.
+max_failures = 5
+
+# ---------------------------------------------------------------------------
+# Smoothing profiles, selected on the command line with `--profile <name>`.
+# While selected, they override the top-level capture_fps / smoothing /
+# display_tau_s values. Edit the numbers below to tune each profile.
+# ---------------------------------------------------------------------------
+
+[profiles]
+
+[profiles.low]
+# Fast response, lowest CPU cost, crisper color steps.
+capture_fps = 4.0
+smoothing = 0.15
+display_tau_s = 0.25
+
+[profiles.normal]
+# Default behaviour (matches the top-level defaults).
+capture_fps = 5.0
+smoothing = 0.35
+display_tau_s = 0.5
+
+[profiles."very-smooth"]
+# Slow, buttery transitions at a higher sample rate.
+capture_fps = 8.0
+smoothing = 0.70
+display_tau_s = 0.80
