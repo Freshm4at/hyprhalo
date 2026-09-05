@@ -4,6 +4,7 @@ mod hypr;
 mod render;
 mod shm;
 
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use smithay_client_toolkit::compositor::{CompositorHandler, CompositorState, Region};
@@ -1006,16 +1007,16 @@ fn draw_glow(gs: &mut GlowSurface, target: Option<&Target>, scene: &Scene, cfg: 
 
 // ---------------------------------------------------------------- main
 
-/// Parse `--profile <name>` and `--help`. Profile names come from the
-/// `[profiles]` section of the config file. Returns:
-/// `None` = exit (bad args or help shown), `Some(None)` = run with no profile,
-/// `Some(Some(name))` = run with the given profile.
-fn parse_args() -> Option<Option<String>> {
+/// Parse `--profile <name>` / `--toggle` / `--help`. Returns
+/// `(toggle, profile)` — `None` means exit (bad args or help shown).
+fn parse_args() -> Option<(bool, Option<String>)> {
     use std::process::exit;
+    let mut toggle = false;
     let mut profile: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--toggle" | "-t" => toggle = true,
             "--profile" | "-p" => {
                 let Some(v) = args.next() else {
                     eprintln!("error: --profile needs a profile name from the config's [profiles] section");
@@ -1035,19 +1036,65 @@ fn parse_args() -> Option<Option<String>> {
             }
         }
     }
-    Some(profile)
+    Some((toggle, profile))
 }
 
 fn print_usage() {
     eprintln!(
         "hyprhalo — ambilight for Hyprland\n
-USAGE:\n    hyprhalo [OPTIONS]\n
-OPTIONS:\n    -p, --profile <name>  apply one of the profiles from the config's [profiles]
+USAGE:\n    hyprhalo [-p PROFILE] [-t|--toggle]\n
+OPTIONS:\n    -t, --toggle          if an instance is already running, stop it and exit;
+                           otherwise launch hyprhalo (use on hotkeys)\n
+    -p, --profile <name>  apply one of the profiles from the config's [profiles]
                            section (low, normal, very-smooth by default)\n
-        --help, -h         print this help\n
+    -h, --help            print this help\n
 Profiles are defined in the [profiles] section and override the top-level
 capture_fps / smoothing / display_tau_s values while selected."
     );
+}
+
+/// `--toggle` support: a lock file (``$XDG_RUNTIME_DIR/hyprhalo.lock``) is held
+/// by the running instance. If the lock can't be acquired, the previous
+/// instance is terminated and this invocation exits. Returns true if it's safe
+/// to run as the new instance.
+fn acquire_toggle_lock() -> bool {
+    use std::os::unix::io::AsRawFd;
+    let path = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("hyprhalo.lock");
+    let f = match std::fs::OpenOptions::new().read(true).write(true).create(true).open(&path) {
+        Ok(f) => f,
+        Err(e) => {
+            log::warn!("toggle lock unavailable ({e}); starting anyway");
+            return true;
+        }
+    };
+    match unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } {
+        0 => {
+            use std::io::Write;
+            // We own the lock: record our pid, then forget `f` so the flock is
+            // held for the whole process lifetime (released at exit).
+            let _ = f.set_len(0);
+            let _ = (&f).write_all(format!("{}\n", std::process::id()).as_bytes());
+            std::mem::forget(f);
+            true
+        }
+        _ => {
+            // Another instance holds the lock: stop it.
+            let bytes = std::fs::read_to_string(&path).unwrap_or_default();
+            let pid: i32 = bytes.trim().parse().unwrap_or(-1);
+            if pid > 0 {
+                unsafe {
+                    libc::kill(pid, libc::SIGTERM);
+                }
+                println!("hyprhalo: stopping the running instance (pid {pid})");
+            } else {
+                eprintln!("hyprhalo: another instance holds the lock but its pid is unknown");
+            }
+            false
+        }
+    }
 }
 
 fn main() {
@@ -1055,7 +1102,7 @@ fn main() {
         .format_timestamp(None)
         .init();
 
-    let profile = match parse_args() {
+    let (toggle, profile) = match parse_args() {
         Some(p) => p,
         None => return,
     };
@@ -1069,6 +1116,9 @@ fn main() {
                 std::process::exit(1);
             }
         }
+    }
+    if toggle && !acquire_toggle_lock() {
+        return; // a previous instance was just terminated
     }
 
     let conn = Connection::connect_to_env().expect("failed to connect to Wayland");

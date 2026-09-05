@@ -50,12 +50,19 @@ Log verbosity comes from `RUST_LOG` (default `info`):
 ### CLI
 
 ```
--p, --profile <name>  apply one of the profiles from the config's [profiles] section
--h, --help            print help
+-t, --toggle           if an instance is already running, stop it and exit;
+                       otherwise launch hyprhalo (use on hotkeys)
+-p, --profile <name>   apply one of the profiles from the config's [profiles] section
+-h, --help             print help
 ```
 
 `--profile` applies the named profile's values over the top-level config, e.g.
-`hyprhalo -p very-smooth`.
+`hyprhalo -p very-smooth`. `--toggle` keeps a lock file in `$XDG_RUNTIME_DIR`
+so a hotkey can start/stop hyprhalo with the same key:
+
+```lua
+hl.exec_cmd("/home/you/.local/bin/hyprhalo --toggle -p very-smooth &")
+```
 
 ## Configuration
 
